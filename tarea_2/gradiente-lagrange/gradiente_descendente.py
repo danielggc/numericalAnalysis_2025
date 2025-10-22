@@ -71,30 +71,33 @@ def gradiente_descendente(
     
     residuos = []
     
-    # Iteraciones del gradiente descendente
+    # ============= ITERACIONES DEL GRADIENTE DESCENDENTE =============
+    # En cada iteración k, partimos de x_k y calculamos x_{k+1}
     for k in range(max_iter):
-        # Calcular el residuo: r = b - Ax
+        # PASO 1: Calcular residuo r_k = b - A*x_k (negativo del gradiente)
         r = b - A @ x
         
-        # Calcular la norma del residuo
+        # PASO 2: Verificar convergencia (norma del residuo)
         norma_r = np.linalg.norm(r)
         residuos.append(norma_r)
         
         if verbose and k % 100 == 0:
             print(f"Iteración {k}: ||r|| = {norma_r:.6e}")
         
-        # Criterio de parada
+        # Criterio de parada: si ||r_k|| < tol, hemos convergido
         if norma_r < tol:
             if verbose:
                 print(f"\nConvergencia alcanzada en {k} iteraciones")
                 print(f"Norma del residuo final: {norma_r:.6e}")
             return x, residuos, k
         
-        # Calcular el tamaño de paso óptimo: alpha = (r^T r) / (r^T A r)
+        # PASO 3: Calcular tamaño de paso óptimo alpha_k
+        # Formula: alpha = (r^T * r) / (r^T * A * r)
+        # Esto minimiza f(x) en la dirección del residuo
         Ar = A @ r
         alpha = (r.T @ r) / (r.T @ Ar)
         
-        # Actualizar la solución: x = x + alpha * r
+        # PASO 4: Actualizar solución x_{k+1} = x_k + alpha_k * r_k
         x = x + alpha * r
     
     if verbose:
@@ -136,47 +139,59 @@ def gradiente_conjugado(
     else:
         x = x0.copy()
     
-    r = b - A @ x  # Residuo inicial
-    p = r.copy()    # Dirección de búsqueda inicial
+    r = b - A @ x  # Residuo inicial r_{-1} = b - A*x_0 (donde x_0 es el valor inicial)
+    p = r.copy()    # Dirección de búsqueda inicial: S_{-2} = -∇f(x_0) = r_{-1}
     
     residuos = []
     
-    # Iteraciones del gradiente conjugado
+    # ============= ITERACIONES DEL GRADIENTE CONJUGADO =============
+    # El gradiente conjugado usa direcciones conjugadas para acelerar convergencia
+    # En cada iteración k:
+    #   x_k:   solución actual
+    #   x_{k-1}: solución de la iteración anterior
+    #   x_{k-2}: solución dos iteraciones atrás
+    #   r_k = b - A*x_k:  residuo actual (negativo del gradiente)
+    #   S_k = -∇f(x_k) + β_k * S_{k-1}:  dirección de búsqueda conjugada
+    
     for k in range(max_iter):
-        # Calcular la norma del residuo
+        # PASO 1: Verificar convergencia actual
         norma_r = np.linalg.norm(r)
         residuos.append(norma_r)
         
         if verbose and k % 100 == 0:
             print(f"Iteración {k}: ||r|| = {norma_r:.6e}")
         
-        # Criterio de parada
+        # Si hemos convergido, retornar x_k
         if norma_r < tol:
             if verbose:
                 print(f"\nConvergencia alcanzada en {k} iteraciones")
                 print(f"Norma del residuo final: {norma_r:.6e}")
             return x, residuos, k
         
-        # Calcular Ap
-        Ap = A @ p
+        # PASO 2: Calcular tamaño de paso óptimo α_k
+        # α_k = (r_k^T * r_k) / (S_k^T * A * S_k)
+        Ap = A @ p  # Calcular A*S_k donde S_k es la dirección p
         
-        # Calcular el tamaño de paso: alpha = (r^T r) / (p^T A p)
         r_dot_r = r.T @ r
         alpha = r_dot_r / (p.T @ Ap)
         
-        # Actualizar la solución: x = x + alpha * p
+        # PASO 3: Actualizar solución x_{k+1} = x_k + α_k * S_k
         x = x + alpha * p
         
-        # Actualizar el residuo: r_new = r - alpha * Ap
+        # PASO 4: Calcular nuevo residuo r_{k+1} = r_k - α_k * A * S_k
         r_new = r - alpha * Ap
         
-        # Calcular beta para la nueva dirección conjugada
+        # PASO 5: Calcular β_k para la dirección de búsqueda conjugada
+        # β_k = (r_{k+1}^T * r_{k+1}) / (r_k^T * r_k)
+        # Esto asegura que la nueva dirección es conjugada con las anteriores
         beta = (r_new.T @ r_new) / r_dot_r
         
-        # Actualizar la dirección de búsqueda: p = r_new + beta * p
+        # PASO 6: Calcular nueva dirección conjugada
+        # S_{k+1} = r_{k+1} + β_k * S_k = -∇f(x_{k+1}) + β_k * S_k
+        # (Esta es la combinación lineal mencionada en la imagen)
         p = r_new + beta * p
         
-        # Actualizar el residuo
+        # PASO 7: Preparar para la siguiente iteración
         r = r_new
     
     if verbose:
@@ -356,24 +371,32 @@ if __name__ == "__main__":
         ax3.grid(True, alpha=0.3)
         ax3.set_ylim([0, 1.2])
         
-        # Subplot 4: Comparación de iteraciones vs tamaño del sistema
+        # ======== Subplot 4: COMPARACIÓN DE EFICIENCIA (Iteraciones vs Tamaño) ========
+        # Este gráfico muestra cómo cambia el número de iteraciones cuando aumenta 
+        # el tamaño del sistema. Es crucial para entender la escalabilidad de los algoritmos.
         ax4 = axes[1, 1]
-        tamanios = [3, 5, 10, 15, 20]
-        iters_gd = []
-        iters_gc = []
         
+        # Tamaños de sistemas a probar: desde pequeño (3) hasta mediano (20)
+        tamanios = [3, 5, 10, 15, 20]
+        iters_gd = []   # Iteraciones del Gradiente Descendente para cada tamaño
+        iters_gc = []   # Iteraciones del Gradiente Conjugado para cada tamaño
+        
+        # Generar sistemas de diferentes tamaños y contar iteraciones necesarias
         for n in tamanios:
-            np.random.seed(42)
+            np.random.seed(42)  # Para reproducibilidad
+            # Crear matriz simétrica definida positiva de tamaño n×n
             M_test = np.random.randn(n, n)
             A_test = M_test.T @ M_test + n * np.eye(n)
             b_test = np.random.randn(n)
             
+            # Resolver con ambos métodos y registrar iteraciones
             _, _, iter_gd_test = gradiente_descendente(A_test, b_test, tol=1e-8, max_iter=1000, verbose=False)
             _, _, iter_gc_test = gradiente_conjugado(A_test, b_test, tol=1e-8, max_iter=1000, verbose=False)
             
             iters_gd.append(iter_gd_test)
             iters_gc.append(iter_gc_test)
         
+        # Graficar resultados
         ax4.plot(tamanios, iters_gd, 'b-o', label='Gradiente Descendente', linewidth=2, markersize=8)
         ax4.plot(tamanios, iters_gc, 'r--s', label='Gradiente Conjugado', linewidth=2, markersize=8)
         ax4.set_xlabel('Tamaño del sistema (n)', fontsize=11)
